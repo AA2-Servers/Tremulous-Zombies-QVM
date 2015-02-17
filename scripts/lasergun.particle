@@ -1,0 +1,49 @@
+lasergunImpactPS
+{
+  ejector
+  {
+    particle
+    {
+      shader sync gfx/lasergun/laser_particle
+    //  model models/fx/alien_gibs/a_gib1.md3
+      displacement 0 0 0 ~2.0
+
+      normalDisplacement 2.0
+
+      velocityType      normal
+      velocityDir       linear
+      velocityMagnitude 100
+      velocity          0 0 0 ~30
+
+      accelerationType      normal
+      accelerationDir       linear
+      accelerationMagnitude 300~250
+      acceleration          0 0 1 ~360
+          
+      radius 3 4~8 0.0
+      alpha  0 1.0 0.0
+      rotation 0 ~1000 500
+      bounce .1~.8
+
+      lifeTime 100~200
+      overdrawProtection
+    }
+    count 1
+    delay 0
+    period 0 - ~0%
+  }
+  //adding light is way to much plus looks very crappy & buggy
+  //ejector
+  //{
+  //  particle
+  //  {
+  //  dynamicLight    10 30 0 { 1.0 0.0 0.0 }
+  //  
+  //  lifeTime        100
+  //  }
+  //count 1
+  //delay 0
+  //period 100 - ~0%
+  //}
+}
+

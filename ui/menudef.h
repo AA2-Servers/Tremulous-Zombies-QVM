@@ -347,10 +347,10 @@
 #define VOICECHAT_GETFLAG     "getflag"       // command someone to get the flag
 #define VOICECHAT_OFFENSE     "offense"       // command someone to go on offense
 #define VOICECHAT_DEFEND      "defend"        // command someone to go on defense
-#define VOICECHAT_DEFENDFLAG    "defendflag"      // command someone to defend the flag
+#define VOICECHAT_DEFENDFLAG  "defendflag"      // command someone to defend the flag
 #define VOICECHAT_PATROL      "patrol"        // command someone to go on patrol (roam)
 #define VOICECHAT_CAMP        "camp"          // command someone to camp (we don't have sounds for this one)
-#define VOICECHAT_FOLLOWME      "followme"        // command someone to follow you
+#define VOICECHAT_FOLLOWME    "followme"        // command someone to follow you
 #define VOICECHAT_RETURNFLAG    "returnflag"      // command someone to return our flag
 #define VOICECHAT_FOLLOWFLAGCARRIER "followflagcarrier"   // command someone to follow the flag carrier
 #define VOICECHAT_YES       "yes"         // yes, affirmative, etc.

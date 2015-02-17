@@ -1,0 +1,40 @@
+models/weapons/mdriver/seeek-md-impactPS
+{
+  ejector
+  {
+    particle
+    {
+      shader sync gfx/mdriver/green_particle
+
+      displacement 0 0 0 ~2.0
+
+      normalDisplacement 10.0
+
+      velocityType      normal
+      velocityDir       linear
+      velocityMagnitude 400
+      velocity          0 0 0 ~30
+
+      accelerationType      normal
+      accelerationDir       linear
+      accelerationMagnitude 300~250
+      acceleration          0 0 1 ~360
+
+      dynamicLight    30 50 30 { 0.0 0.5 0.0 }
+      realLight
+    
+    //dynamicLight 0 500 0 {.1} //cant specify color >_>
+    
+      radius .1 9~5 0.0
+      alpha  0 1.0 0.0
+      rotation 0 ~1000 500
+      bounce .1~.8
+
+      lifeTime 500~1500
+    }
+
+    count 7~10
+    delay 0
+    period 0 - ~0%
+  }
+}

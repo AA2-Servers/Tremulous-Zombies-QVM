@@ -75,7 +75,7 @@
       textalignx 0
       textaligny 28
       textstyle ITEM_TEXTSTYLE_NORMAL
-      ownerdraw CG_ZOMBIETIMER;
+      ownerdraw CG_ZOMBIETIMER
       background "ui/assets/human/zombietimer.tga"
     }
     

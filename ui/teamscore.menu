@@ -48,7 +48,7 @@
     {
       name stagereport
       align ITEM_ALIGN_CENTER
-      text "Survivors"
+      text "The Survivors"
       textscale 0.4
       textaligny 24
       rect 290 78 184 23

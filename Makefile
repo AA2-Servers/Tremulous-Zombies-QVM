@@ -121,7 +121,7 @@ endif
 
 BD=$(BUILD_DIR)/debug-$(PLATFORM)-$(ARCH)
 BR=$(BUILD_DIR)/release-$(PLATFORM)-$(ARCH)
-MODPATH=zvh
+MODPATH=zombie
 CDIR=$(MOUNT_DIR)/client
 SDIR=$(MOUNT_DIR)/server
 RDIR=$(MOUNT_DIR)/renderer
@@ -719,6 +719,13 @@ endif
 
 ifneq ($(BUILD_PK3S),0)
   TARGETS += \
+    $(B)/$(MODPATH)/zgfx.$(PK3EXT) \
+    $(B)/$(MODPATH)/zicons.$(PK3EXT) \
+    $(B)/$(MODPATH)/zmodels.$(PK3EXT) \
+    $(B)/$(MODPATH)/zoverrides.$(PK3EXT) \
+    $(B)/$(MODPATH)/zscripts.$(PK3EXT) \
+    $(B)/$(MODPATH)/zsound.$(PK3EXT) \
+    $(B)/$(MODPATH)/zui.$(PK3EXT) \
     $(B)/$(MODPATH)/zvms.$(PK3EXT)
 endif
 
@@ -1051,9 +1058,43 @@ dist:
 # PK3s
 #############################################################################
 
-ui/infopanes.def: ui/infopanes.def.h
-	@echo "GCC $@"
-	@gcc -E $< | grep "^[^#].*" > $@
+define DO_ZIP
+@echo "ZIP $@"
+@zip -X9 $@ $?
+endef
+
+GFXPK3_FILES = $(shell find gfx/ | sort)
+ICONSPK3_FILES = $(shell find icons/ | sort)
+MODELSPK3_FILES = $(shell find models/ | sort)
+OVERRIDESPK3_FILES = $(shell find overrides/ | sort)
+SCRIPTSPK3_FILES = $(shell find scripts/ | sort)
+SOUNDPK3_FILES = $(shell find sound/ | sort)
+UIPK3_FILES = $(shell find ui/ | sort)
+
+#ui/infopanes.def: ui/infopanes.def.h
+#	@echo "GCC $@"
+#	@gcc -E $< | grep "^[^#].*" > $@
+
+$(B)/$(MODPATH)/zgfx.$(PK3EXT): $(GFXPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zicons.$(PK3EXT): $(ICONSPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zmodels.$(PK3EXT): $(MODELSPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zoverrides.$(PK3EXT): $(OVERRIDESPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zscripts.$(PK3EXT): $(SCRIPTSPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zsound.$(PK3EXT): $(SOUNDPK3_FILES)
+	$(DO_ZIP)
+
+$(B)/$(MODPATH)/zui.$(PK3EXT): $(UIPK3_FILES)
+	$(DO_ZIP)
 
 $(B)/$(MODPATH)/zvms.$(PK3EXT): $(B)/$(MODPATH)/vm/cgame.$(QVMEXT) $(B)/$(MODPATH)/vm/ui.$(QVMEXT)
 	@echo "ZIP $@"
