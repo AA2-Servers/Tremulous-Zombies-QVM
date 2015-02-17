@@ -918,8 +918,8 @@ G_InitGame(int levelTime, int randomSeed, int restart)
   //ROTAX
   trap_Cvar_Set("g_ambush", "0");
   trap_Cvar_Set("g_ctn", "0");
-  trap_Cvar_Set("g_friendlyFire", "1");
-  trap_Cvar_Set("g_friendlyFireAliens", "1");
+  trap_Cvar_Set("g_friendlyFire", "0");
+  trap_Cvar_Set("g_friendlyFireAliens", "0");
 
   ROTACAK_ambush_rebuild_time_temp = 0;
   ROTACAK_ambush_stage = 1;

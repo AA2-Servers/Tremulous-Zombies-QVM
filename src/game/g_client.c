@@ -969,13 +969,12 @@ TeamCount(int ignoreClientNum, int team)
  ClientCleanName
  ============
  */
-static void
-ClientCleanName(const char *in, char *out, int outSize)
+static void ClientCleanName( const char *in, char *out, int outSize, qboolean special )
 {
-  int len, colorlessLen;
-  char ch;
-  char *p;
-  int spaces;
+  int   len, colorlessLen;
+  char  ch;
+  char  *p;
+  int   spaces;
   qboolean invalid = qfalse;
 
   //save room for trailing null byte
@@ -987,39 +986,38 @@ ClientCleanName(const char *in, char *out, int outSize)
   *p = 0;
   spaces = 0;
 
-  while(1)
+  while( 1 )
   {
     ch = *in++;
-    if (!ch)
+    if( !ch )
       break;
 
     // don't allow leading spaces
-    if (!*p && ch == ' ')
+    if( !*p && ch == ' ' )
       continue;
 
     // don't allow nonprinting characters or (dead) console keys
-    if (ch < ' ' || ch > '}' || ch == '`')
+    if( ch < ' ' || ch > '}' || ch == '`' )
       continue;
 
     // check colors
-    if (Q_IsColorString(in - 1))
+    if( Q_IsColorString( in - 1 ) )
     {
       // make sure room in dest for both chars
-      if (len > outSize - 2)
+      if( len > outSize - 2 )
         break;
 
       *out++ = ch;
       len += 2;
 
       // solo trailing carat is not a color prefix
-      if (!*in)
-      {
+      if( !*in ) {
         *out++ = COLOR_WHITE;
         break;
       }
 
-      // don't allow black in a name, period
-      if (ColorIndex(*in) == 0)
+      // don't allow black in a name, unless if special
+      if( ColorIndex( *in ) == 0 && !special )
         *out++ = COLOR_WHITE;
       else
         *out++ = *in;
@@ -1029,16 +1027,16 @@ ClientCleanName(const char *in, char *out, int outSize)
     }
 
     // don't allow too many consecutive spaces
-    if (ch == ' ')
+    if( ch == ' ' )
     {
       spaces++;
-      if (spaces > 3)
+      if( spaces > 3 )
         continue;
     }
     else
       spaces = 0;
 
-    if (len > outSize - 1)
+    if( len > outSize - 1 )
       break;
 
     *out++ = ch;
@@ -1049,20 +1047,20 @@ ClientCleanName(const char *in, char *out, int outSize)
   *out = 0;
 
   // don't allow names beginning with "[skipnotify]" because it messes up /ignore-related code
-  if (!Q_strncmp(p, "[skipnotify]", 12))
+  if( !Q_strncmp( p, "[skipnotify]", 12 ) )
     invalid = qtrue;
 
   // don't allow comment-beginning strings because it messes up various parsers
-  if (strstr(p, "//") || strstr(p, "/*"))
+  if( strstr( p, "//" ) || strstr( p, "/*" ) )
     invalid = qtrue;
 
   // don't allow empty names
-  if (*p == 0 || colorlessLen == 0)
+  if( *p == 0 || colorlessLen == 0 )
     invalid = qtrue;
 
   // if something made the name bad, put them back to UnnamedPlayer
-  if (invalid)
-    Q_strncpyz(p, "UnnamedPlayer", outSize);
+  if( invalid )
+    Q_strncpyz( p, "UnnamedPlayer", outSize );
 }
 
 /*
@@ -1209,26 +1207,33 @@ ClientUserinfoChanged(int clientNum)
     client->pers.predictItemPickup = qfalse;
   else
     client->pers.predictItemPickup = qtrue;
+//SET NAME
 
-  // set name
-  Q_strncpyz(oldname, client->pers.netname, sizeof(oldname));
-  s = Info_ValueForKey(userinfo, "name");
-  ClientCleanName(s, newname, sizeof(newname));
+ Q_strncpyz( oldname, client->pers.netname, sizeof( oldname ) );
+  s = Info_ValueForKey( userinfo, "name" );
 
-  if (strcmp(oldname, newname))
+  if ( !G_admin_permission( ent, ADMF_SPECIALNAME ) )
+    ClientCleanName( s, newname, sizeof( newname ), qfalse );
+  else
+    ClientCleanName( s, newname, sizeof( newname ), qtrue );
+
+  if( strcmp( oldname, newname ) )
   {
-    if (!strlen(oldname) && client->pers.connected != CON_CONNECTED)
+    if( !strlen( oldname ) && client->pers.connected != CON_CONNECTED )
       showRenameMsg = qfalse;
 
     // in case we need to revert and there's no oldname
-    ClientCleanName(va("%s", client->pers.netname), oldname, sizeof(oldname));
-
-    if (g_newbieNumbering.integer)
+    if ( !G_admin_permission( ent, ADMF_SPECIALNAME ) )
+      ClientCleanName( va( "%s", client->pers.netname ), oldname, sizeof( oldname ), qfalse );
+    else
+      ClientCleanName( va( "%s", client->pers.netname ), oldname, sizeof( oldname ), qtrue );
+ 
+    if( g_newbieNumbering.integer )
     {
-      if (!strcmp(newname, "UnnamedPlayer"))
-        Q_strncpyz(newname, G_NextNewbieName(ent), sizeof(newname));
-      if (!strcmp(oldname, "UnnamedPlayer"))
-        Q_strncpyz(oldname, G_NextNewbieName(ent), sizeof(oldname));
+      if( !strcmp( newname, "UnnamedPlayer" ) )
+        Q_strncpyz( newname, G_NextNewbieName( ent ), sizeof( newname ) );
+      if( !strcmp( oldname, "UnnamedPlayer" ) )
+        Q_strncpyz( oldname, G_NextNewbieName( ent ), sizeof( oldname ) );
     }
 
     if (client->pers.muted)
