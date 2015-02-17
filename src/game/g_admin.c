@@ -5953,26 +5953,17 @@ qboolean G_admin_message(gentity_t *ent, int skiparg)
 
 qboolean G_admin_mystats(gentity_t *ent, int skiparg)
 {
-	int ex(int var) //function to check if var exists, maybe prevernt against some bug
-	{
-		if(var)
-		{
-			return var;
-		}
-		return 0;
-	}
 	if (ent->client->pers.mysqlid > 0)
 	{
-	ADMBP_begin();
-	ADMBP(va("%s^7:\n^3Level:^7 %d       ^3Kills:^7 %d       ^3Deaths:^7 %d\n^3Time Played:^7 %d minutes       ^3Games Won:^7 %d\n^3Structures Built:^7 %d       ^3Nodes Killed:^7 %d\n",ent->client->pers.netname, ex(ent->client->pers.playerlevel),(ex(ent->client->pers.totalkills) + ex(ent->client->pers.statscounters.kills)),(ex(ent->client->pers.totaldeaths) + ex(ent->client->pers.statscounters.deaths)), ex(ent->client->pers.timeplayed), ex(ent->client->pers.gameswin), ex(ent->client->pers.structsbuilt) + ex(ent->client->pers.statscounters.structsbuilt), ex(ent->client->pers.structskilled)));
-	ADMBP_end();
-	return qtrue;
+		ADMBP_begin();
+		ADMBP(va("%s^7:\n^3Level:^7 %d       ^3Kills:^7 %d       ^3Deaths:^7 %d\n^3Time Played:^7 %d minutes       ^3Games Won:^7 %d\n^3Structures Built:^7 %d       ^3Nodes Killed:^7 %d\n", ent->client->pers.netname, ent->client->pers.playerlevel, ent->client->pers.totalkills + ent->client->pers.statscounters.kills, ent->client->pers.totaldeaths + ent->client->pers.statscounters.deaths, ent->client->pers.timeplayed, ent->client->pers.gameswin, ent->client->pers.structsbuilt + ent->client->pers.statscounters.structsbuilt, ent->client->pers.structskilled));
+		ADMBP_end();
+		return qtrue;
 	} else {
-	ADMBP_begin();
+		ADMBP_begin();
 		ADMBP("^7In order to use mystats you need an ^5updated ^7client\n^2Download from: ^5http://blogwtf.com/backport\n");
-	ADMBP_end();
+		ADMBP_end();
 		return qfalse;
 	}
-	return qfalse;
 }
 

@@ -21,15 +21,9 @@ else
   COMPILE_ARCH=$(shell uname -m | sed -e s/i.86/x86/)
 endif
 
-BUILD_CLIENT     = 0
-BUILD_CLIENT_SMP = 0
-BUILD_SERVER     = 0
 BUILD_GAME_SO    = 0
 BUILD_GAME_QVM   = 1
-
-BUILD_PROFILING  = 0
-USE_CURL	= 0
-USE_SDL = 1
+BUILD_PK3S       = 1
 
 #############################################################################
 #
@@ -115,18 +109,6 @@ ifndef USE_CODEC_VORBIS
 USE_CODEC_VORBIS=0
 endif
 
-ifndef USE_MUMBLE
-USE_MUMBLE=1
-endif
-
-ifndef USE_VOIP
-USE_VOIP=1
-endif
-
-ifndef USE_INTERNAL_SPEEX
-USE_INTERNAL_SPEEX=1
-endif
-
 ifndef USE_LOCAL_HEADERS
 USE_LOCAL_HEADERS=1
 endif
@@ -135,51 +117,26 @@ ifndef BUILD_MASTER_SERVER
 BUILD_MASTER_SERVER=0
 endif
 
-ifndef USE_FREETYPE
-USE_FREETYPE=1
-endif
-
 #############################################################################
 
 BD=$(BUILD_DIR)/debug-$(PLATFORM)-$(ARCH)
 BR=$(BUILD_DIR)/release-$(PLATFORM)-$(ARCH)
+MODPATH=zvh
 CDIR=$(MOUNT_DIR)/client
 SDIR=$(MOUNT_DIR)/server
 RDIR=$(MOUNT_DIR)/renderer
 CMDIR=$(MOUNT_DIR)/qcommon
-SDLDIR=$(MOUNT_DIR)/sdl
-ASMDIR=$(MOUNT_DIR)/asm
-SYSDIR=$(MOUNT_DIR)/sys
-#UDIR=$(MOUNT_DIR)/unix #FIXME: This should be SYSDIR but for Lazyness will left as is.
-#W32DIR=$(MOUNT_DIR)/win32
+UDIR=$(MOUNT_DIR)/unix
+W32DIR=$(MOUNT_DIR)/win32
 GDIR=$(MOUNT_DIR)/game
 CGDIR=$(MOUNT_DIR)/cgame
 NDIR=$(MOUNT_DIR)/null
 UIDIR=$(MOUNT_DIR)/ui
-JPDIR=$(MOUNT_DIR)/jpeg-6b
-SPEEXDIR=$(MOUNT_DIR)/libspeex
-Q3ASMDIR=$(MOUNT_DIR)/tools/asm
-LBURGDIR=$(MOUNT_DIR)/tools/lcc/lburg
-Q3CPPDIR=$(MOUNT_DIR)/tools/lcc/cpp
-Q3LCCETCDIR=$(MOUNT_DIR)/tools/lcc/etc
-Q3LCCSRCDIR=$(MOUNT_DIR)/tools/lcc/src
+JPDIR=$(MOUNT_DIR)/jpeg-6
+TOOLSDIR=$(MOUNT_DIR)/tools
 SDLHDIR=$(MOUNT_DIR)/SDL12
 LIBSDIR=$(MOUNT_DIR)/libs
 MASTERDIR=$(MOUNT_DIR)/master
-TEMPDIR=/tmp
-
-# set PKG_CONFIG_PATH to influence this, e.g.
-# PKG_CONFIG_PATH=/opt/cross/i386-mingw32msvc/lib/pkgconfig
-ifeq ($(shell which pkg-config > /dev/null; echo $$?),0)
-  CURL_CFLAGS=$(shell pkg-config --cflags libcurl)
-  CURL_LIBS=$(shell pkg-config --libs libcurl)
-  OPENAL_CFLAGS=$(shell pkg-config --cflags openal)
-  OPENAL_LIBS=$(shell pkg-config --libs openal)
-# FIXME: introduce CLIENT_CFLAGS
-  SDL_CFLAGS=$(shell pkg-config --cflags sdl|sed 's/-Dmain=SDL_main//')
-  SDL_LIBS=$(shell pkg-config --libs sdl)
-endif
-
 
 # extract version info
 VERSION=$(shell grep "\#define VERSION_NUMBER" $(CMDIR)/q_shared.h | \
@@ -228,19 +185,11 @@ ifeq ($(PLATFORM),linux)
 
   BASE_CFLAGS = -Wall -fno-strict-aliasing -Wimplicit -Wstrict-prototypes -pipe
 
-  ifeq ($(BUILD_PROFILING),1)
-    BASE_CFLAGS += -pg
-  endif
-
   ifeq ($(USE_OPENAL),1)
     BASE_CFLAGS += -DUSE_OPENAL=1
     ifeq ($(USE_OPENAL_DLOPEN),1)
       BASE_CFLAGS += -DUSE_OPENAL_DLOPEN=1
     endif
-  endif
-
-  ifeq ($(USE_FREETYPE),1)
-    BASE_CFLAGS += -DBUILD_FREETYPE $(shell freetype-config --cflags)
   endif
 
   ifeq ($(USE_CURL),1)
@@ -260,33 +209,20 @@ ifeq ($(PLATFORM),linux)
     BASE_CFLAGS += -I/usr/X11R6/include
   endif
 
-  OPTIMIZE = -O3 -funroll-loops
-  
-  ifeq ($(BUILD_PROFILING),0)
-    OPTIMIZE += -fomit-frame-pointer
-  endif
+  OPTIMIZE = -O3 -funroll-loops -fomit-frame-pointer
 
   ifeq ($(ARCH),x86_64)
-    OPTIMIZE = -O3 -funroll-loops \
+    OPTIMIZE = -O3 -fomit-frame-pointer -funroll-loops \
       -falign-loops=2 -falign-jumps=2 -falign-functions=2 \
-      -fstrength-reduce      
-    ifeq ($(BUILD_PROFILING),0)
-     OPTIMIZE += -fomit-frame-pointer
-    endif
+      -fstrength-reduce
     # experimental x86_64 jit compiler! you need GNU as
     HAVE_VM_COMPILED = true
-    ifeq ($(BUILD_PROFILING),0)
-     OPTIMIZE += -fomit-frame-pointer
-    endif
   else
   ifeq ($(ARCH),x86)
-    OPTIMIZE = -O3 -march=i586 \
+    OPTIMIZE = -O3 -march=i586 -fomit-frame-pointer \
       -funroll-loops -falign-loops=2 -falign-jumps=2 \
       -falign-functions=2 -fstrength-reduce
     HAVE_VM_COMPILED=true
-    ifeq ($(BUILD_PROFILING),0)
-     OPTIMIZE += -fomit-frame-pointer
-    endif
   else
   ifeq ($(ARCH),ppc)
     BASE_CFLAGS += -maltivec
@@ -308,13 +244,10 @@ ifeq ($(PLATFORM),linux)
   SHLIBLDFLAGS=-shared $(LDFLAGS)
 
   THREAD_LDFLAGS=-lpthread
-  LDFLAGS=-ldl -lm  $(shell mysql_config --libs) #mysql added
-  ifeq ($(BUILD_PROFILING),1)
-     LDFLAGS += -pg
-    endif
+  LDFLAGS=-ldl -lm
 
   ifeq ($(USE_SDL),1)
-    CLIENT_LDFLAGS=$(shell sdl-config --libs) -lGL
+    CLIENT_LDFLAGS=$(shell sdl-config --libs)
   else
     CLIENT_LDFLAGS=-L/usr/X11R6/$(LIB) -lX11 -lXext -lXxf86dga -lXxf86vm
   endif
@@ -333,18 +266,6 @@ ifeq ($(PLATFORM),linux)
 
   ifeq ($(USE_CODEC_VORBIS),1)
     CLIENT_LDFLAGS += -lvorbisfile -lvorbis -logg
-  endif
-
-  ifeq ($(USE_MUMBLE),1)
-    CLIENT_LDFLAGS += -lrt
-  endif
-
-  ifeq ($(USE_LOCAL_HEADERS),1)
-    BASE_CFLAGS += -I$(SDLHDIR)/include
-  endif
-
-  ifeq ($(USE_FREETYPE),1)
-    CLIENT_LDFLAGS += -lfreetype
   endif
 
   ifeq ($(ARCH),x86)
@@ -748,34 +669,10 @@ ifeq ($(PLATFORM),sunos)
 
   BOTCFLAGS=-O0
 
-  CLIENT_LDFLAGS=$(shell sdl-config --libs) -lGL
-
-  ifeq ($(USE_OPENAL),1)
-    ifneq ($(USE_OPENAL_DLOPEN),1)
-      CLIENT_LDFLAGS += -lopenal
-    endif
-  endif
-
-  ifeq ($(USE_CURL),1)
-    ifneq ($(USE_CURL_DLOPEN),1)
-      CLIENT_LDFLAGS += -lcurl
-    endif
-  endif
-
-  ifeq ($(USE_CODEC_VORBIS),1)
-    CLIENT_LDFLAGS += -lvorbisfile -lvorbis -logg
-  endif
-
-  ifeq ($(USE_MUMBLE),1)
-    CLIENT_LDFLAGS += -lrt
-  endif
-
-  ifeq ($(USE_LOCAL_HEADERS),1)
-    BASE_CFLAGS += -I$(SDLHDIR)/include
-  endif
-
-  ifeq ($(USE_FREETYPE),1)
-    CLIENT_LDFLAGS += -lfreetype
+  ifeq ($(USE_SDL),1)
+    CLIENT_LDFLAGS=$(shell sdl-config --libs) -L/usr/X11/lib -lGLU -lX11 -lXext
+  else
+    CLIENT_LDFLAGS=-L/usr/openwin/$(LIB) -L/usr/X11/lib -lGLU -lX11 -lXext
   endif
 
 else # ifeq sunos
@@ -799,45 +696,34 @@ endif #NetBSD
 endif #IRIX
 endif #SunOS
 
+PK3EXT=pk3
+QVMEXT=qvm
+
 TARGETS =
-
-ifneq ($(BUILD_SERVER),0)
-  TARGETS += $(B)/tremded.$(ARCH)$(BINEXT)
-endif
-
-ifneq ($(BUILD_CLIENT),0)
-  TARGETS += $(B)/tremulous.$(ARCH)$(BINEXT)
-  ifneq ($(BUILD_CLIENT_SMP),0)
-    TARGETS += $(B)/tremulous-smp.$(ARCH)$(BINEXT)
-  endif
-endif
 
 ifneq ($(BUILD_GAME_SO),0)
   TARGETS += \
-    $(B)/base/game$(ARCH).$(SHLIBEXT) \
-    $(B)/base/ui$(ARCH).$(SHLIBEXT)
+    $(B)/$(MODPATH)/cgame$(ARCH).$(SHLIBEXT) \
+    $(B)/$(MODPATH)/game$(ARCH).$(SHLIBEXT) \
+    $(B)/$(MODPATH)/ui$(ARCH).$(SHLIBEXT)
 endif
 
 ifneq ($(BUILD_GAME_QVM),0)
   ifneq ($(CROSS_COMPILING),1)
     TARGETS += \
-      $(B)/base/vm/cgame.qvm \
-      $(B)/base/vm/game.qvm \
-      $(B)/base/vm/ui.qvm
+      $(B)/$(MODPATH)/vm/cgame.$(QVMEXT) \
+      $(B)/$(MODPATH)/vm/game.$(QVMEXT) \
+      $(B)/$(MODPATH)/vm/ui.$(QVMEXT)
   endif
 endif
 
-ifeq ($(USE_MUMBLE),1)
-  BASE_CFLAGS += -DUSE_MUMBLE
+ifneq ($(BUILD_PK3S),0)
+  TARGETS += \
+    $(B)/$(MODPATH)/zvms.$(PK3EXT)
 endif
 
-ifeq ($(USE_VOIP),1)
-  BASE_CFLAGS += -DUSE_VOIP
-  ifeq ($(USE_INTERNAL_SPEEX),1)
-    BASE_CFLAGS += -DFLOATING_POINT -DUSE_ALLOCA -I$(SPEEXDIR)/include
-  else
-    CLIENT_LDFLAGS += -lspeex
-  endif
+ifeq ($(USE_CCACHE),1)
+  CC := ccache $(CC)
 endif
 
 ifdef DEFAULT_BASEDIR
@@ -845,37 +731,30 @@ ifdef DEFAULT_BASEDIR
 endif
 
 ifeq ($(USE_LOCAL_HEADERS),1)
-  BASE_CFLAGS += -DUSE_LOCAL_HEADERS
-endif
-
-ifeq ($(BUILD_STANDALONE),1)
-  BASE_CFLAGS += -DSTANDALONE
+  BASE_CFLAGS += -DUSE_LOCAL_HEADERS=1
 endif
 
 ifeq ($(GENERATE_DEPENDENCIES),1)
-  DEPEND_CFLAGS = -MMD
-else
-  DEPEND_CFLAGS =
+  BASE_CFLAGS += -MMD
 endif
 
-BASE_CFLAGS += -DPRODUCT_VERSION=\\\"$(VERSION)\\\"
-
-ifeq ($(V),1)
-echo_cmd=@:
-Q=
-else
-echo_cmd=@echo
-Q=@
+ifeq ($(USE_SVN),1)
+  BASE_CFLAGS += -DSVN_VERSION=\\\"$(SVN_VERSION)\\\"
 endif
 
-define DO_CC
-$(echo_cmd) "CC $<"
-$(Q)$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) -o $@ -c $<
+define DO_CC       
+@echo "CC $<"
+@$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) -o $@ -c $<
 endef
 
 define DO_SMP_CC
-$(echo_cmd) "SMP_CC $<"
-$(Q)$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) -DSMP -o $@ -c $<
+@echo "SMP_CC $<"
+@$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) -DSMP -o $@ -c $<
+endef
+
+define DO_BOT_CC
+@echo "BOT_CC $<"
+@$(CC) $(NOTSHLIBCFLAGS) $(CFLAGS) $(BOTCFLAGS) -DBOTLIB -o $@ -c $<
 endef
 
 ifeq ($(GENERATE_DEPENDENCIES),1)
@@ -889,8 +768,8 @@ define DO_SHLIB_CC
 endef
 
 define DO_AS
-$(echo_cmd) "AS $<"
-$(Q)$(CC) $(CFLAGS) -x assembler-with-cpp -o $@ -c $<
+@echo "AS $<"
+@$(CC) $(CFLAGS) -DELF -x assembler-with-cpp -o $@ -c $<
 endef
 
 define DO_DED_CC
@@ -899,8 +778,8 @@ define DO_DED_CC
 endef
 
 define DO_WINDRES
-$(echo_cmd) "WINDRES $<"
-$(Q)$(WINDRES) -i $< -o $@
+@echo "WINDRES $<"
+@$(WINDRES) -i $< -o $@
 endef
 
 
@@ -912,22 +791,14 @@ default: release
 all: debug release
 
 debug:
-	@$(MAKE) targets B=$(BD) CFLAGS="$(CFLAGS) $(DEPEND_CFLAGS) \
-		$(DEBUG_CFLAGS)" V=$(V)
-ifeq ($(BUILD_MASTER_SERVER),1)
-	$(MAKE) -C $(MASTERDIR) debug
-endif
+	@$(MAKE) targets B=$(BD) CFLAGS="$(CFLAGS) $(DEBUG_CFLAGS)"
 
 release:
-	@$(MAKE) targets B=$(BR) CFLAGS="$(CFLAGS) $(DEPEND_CFLAGS) \
-		$(RELEASE_CFLAGS)" V=$(V)
-ifeq ($(BUILD_MASTER_SERVER),1)
-	$(MAKE) -C $(MASTERDIR) release
-endif
+	@$(MAKE) targets B=$(BR) CFLAGS="$(CFLAGS) $(RELEASE_CFLAGS)"
 
-# Create the build directories, check libraries and print out
+# Create the build directories and tools, print out
 # an informational message, then start building
-targets: makedirs
+targets: makedirs tools
 	@echo ""
 	@echo "Building Tremulous in $(B):"
 	@echo "  CC: $(CC)"
@@ -944,563 +815,86 @@ targets: makedirs
 		echo "    $$i"; \
 	done
 	@echo ""
-ifneq ($(TARGETS),)
-	@$(MAKE) $(TARGETS) V=$(V)
-endif
+	@$(MAKE) $(TARGETS)
 
 makedirs:
 	@if [ ! -d $(BUILD_DIR) ];then $(MKDIR) $(BUILD_DIR);fi
 	@if [ ! -d $(B) ];then $(MKDIR) $(B);fi
-	@if [ ! -d $(B)/client ];then $(MKDIR) $(B)/client;fi
-	@if [ ! -d $(B)/clientsmp ];then $(MKDIR) $(B)/clientsmp;fi
-	@if [ ! -d $(B)/ded ];then $(MKDIR) $(B)/ded;fi
-	@if [ ! -d $(B)/base ];then $(MKDIR) $(B)/base;fi
-	@if [ ! -d $(B)/base/cgame ];then $(MKDIR) $(B)/base/cgame;fi
-	@if [ ! -d $(B)/base/game ];then $(MKDIR) $(B)/base/game;fi
-	@if [ ! -d $(B)/base/ui ];then $(MKDIR) $(B)/base/ui;fi
-	@if [ ! -d $(B)/base/qcommon ];then $(MKDIR) $(B)/base/qcommon;fi
-	@if [ ! -d $(B)/base/vm ];then $(MKDIR) $(B)/base/vm;fi
-	@if [ ! -d $(B)/tools ];then $(MKDIR) $(B)/tools;fi
-	@if [ ! -d $(B)/tools/asm ];then $(MKDIR) $(B)/tools/asm;fi
-	@if [ ! -d $(B)/tools/etc ];then $(MKDIR) $(B)/tools/etc;fi
-	@if [ ! -d $(B)/tools/rcc ];then $(MKDIR) $(B)/tools/rcc;fi
-	@if [ ! -d $(B)/tools/cpp ];then $(MKDIR) $(B)/tools/cpp;fi
-	@if [ ! -d $(B)/tools/lburg ];then $(MKDIR) $(B)/tools/lburg;fi
+	@if [ ! -d $(B)/$(MODPATH)/ ];then $(MKDIR) $(B)/$(MODPATH)/;fi
+	@if [ ! -d $(B)/$(MODPATH)/cgame ];then $(MKDIR) $(B)/$(MODPATH)/cgame;fi
+	@if [ ! -d $(B)/$(MODPATH)/game ];then $(MKDIR) $(B)/$(MODPATH)/game;fi
+	@if [ ! -d $(B)/$(MODPATH)/ui ];then $(MKDIR) $(B)/$(MODPATH)/ui;fi
+	@if [ ! -d $(B)/$(MODPATH)/qcommon ];then $(MKDIR) $(B)/$(MODPATH)/qcommon;fi
+	@if [ ! -d $(B)/$(MODPATH)/vm ];then $(MKDIR) $(B)/$(MODPATH)/vm;fi
 
 #############################################################################
 # QVM BUILD TOOLS
 #############################################################################
 
+Q3LCC=$(TOOLSDIR)/q3lcc$(BINEXT)
+Q3ASM=$(TOOLSDIR)/q3asm$(BINEXT)
 
-TOOLS_OPTIMIZE = -g -O2 -Wall -fno-strict-aliasing
-TOOLS_CFLAGS = $(TOOLS_OPTIMIZE) \
-               -DTEMPDIR=\"$(TEMPDIR)\" -DSYSTEM=\"\" \
-               -I$(Q3LCCSRCDIR) \
-               -I$(LBURGDIR)
-TOOLS_LDFLAGS =
-
-ifeq ($(GENERATE_DEPENDENCIES),1)
-	TOOLS_CFLAGS += -MMD
+ifeq ($(CROSS_COMPILING),1)
+tools:
+	@echo QVM tools not built when cross-compiling
+else
+tools:
+	$(MAKE) -C $(TOOLSDIR)/lcc install
+	$(MAKE) -C $(TOOLSDIR)/asm install
 endif
-
-define DO_TOOLS_CC
-$(echo_cmd) "TOOLS_CC $<"
-$(Q)$(CC) $(TOOLS_CFLAGS) -o $@ -c $<
-endef
-
-define DO_TOOLS_CC_DAGCHECK
-$(echo_cmd) "TOOLS_CC_DAGCHECK $<"
-$(Q)$(CC) $(TOOLS_CFLAGS) -Wno-unused -o $@ -c $<
-endef
-
-LBURG       = $(B)/tools/lburg/lburg$(BINEXT)
-DAGCHECK_C  = $(B)/tools/rcc/dagcheck.c
-Q3RCC       = $(B)/tools/q3rcc$(BINEXT)
-Q3CPP       = $(B)/tools/q3cpp$(BINEXT)
-Q3LCC       = $(B)/tools/q3lcc$(BINEXT)
-Q3ASM       = $(B)/tools/q3asm$(BINEXT)
-
-LBURGOBJ= \
-	$(B)/tools/lburg/lburg.o \
-	$(B)/tools/lburg/gram.o
-
-$(B)/tools/lburg/%.o: $(LBURGDIR)/%.c
-	$(DO_TOOLS_CC)
-
-$(LBURG): $(LBURGOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(TOOLS_LDFLAGS) -o $@ $^
-
-Q3RCCOBJ = \
-  $(B)/tools/rcc/alloc.o \
-  $(B)/tools/rcc/bind.o \
-  $(B)/tools/rcc/bytecode.o \
-  $(B)/tools/rcc/dag.o \
-  $(B)/tools/rcc/dagcheck.o \
-  $(B)/tools/rcc/decl.o \
-  $(B)/tools/rcc/enode.o \
-  $(B)/tools/rcc/error.o \
-  $(B)/tools/rcc/event.o \
-  $(B)/tools/rcc/expr.o \
-  $(B)/tools/rcc/gen.o \
-  $(B)/tools/rcc/init.o \
-  $(B)/tools/rcc/inits.o \
-  $(B)/tools/rcc/input.o \
-  $(B)/tools/rcc/lex.o \
-  $(B)/tools/rcc/list.o \
-  $(B)/tools/rcc/main.o \
-  $(B)/tools/rcc/null.o \
-  $(B)/tools/rcc/output.o \
-  $(B)/tools/rcc/prof.o \
-  $(B)/tools/rcc/profio.o \
-  $(B)/tools/rcc/simp.o \
-  $(B)/tools/rcc/stmt.o \
-  $(B)/tools/rcc/string.o \
-  $(B)/tools/rcc/sym.o \
-  $(B)/tools/rcc/symbolic.o \
-  $(B)/tools/rcc/trace.o \
-  $(B)/tools/rcc/tree.o \
-  $(B)/tools/rcc/types.o
-
-$(DAGCHECK_C): $(LBURG) $(Q3LCCSRCDIR)/dagcheck.md
-	$(echo_cmd) "LBURG $(Q3LCCSRCDIR)/dagcheck.md"
-	$(Q)$(LBURG) $(Q3LCCSRCDIR)/dagcheck.md $@
-
-$(B)/tools/rcc/dagcheck.o: $(DAGCHECK_C)
-	$(DO_TOOLS_CC_DAGCHECK)
-
-$(B)/tools/rcc/%.o: $(Q3LCCSRCDIR)/%.c
-	$(DO_TOOLS_CC)
-
-$(Q3RCC): $(Q3RCCOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(TOOLS_LDFLAGS) -o $@ $^
-
-Q3CPPOBJ = \
-	$(B)/tools/cpp/cpp.o \
-	$(B)/tools/cpp/lex.o \
-	$(B)/tools/cpp/nlist.o \
-	$(B)/tools/cpp/tokens.o \
-	$(B)/tools/cpp/macro.o \
-	$(B)/tools/cpp/eval.o \
-	$(B)/tools/cpp/include.o \
-	$(B)/tools/cpp/hideset.o \
-	$(B)/tools/cpp/getopt.o \
-	$(B)/tools/cpp/unix.o
-
-$(B)/tools/cpp/%.o: $(Q3CPPDIR)/%.c
-	$(DO_TOOLS_CC)
-
-$(Q3CPP): $(Q3CPPOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(TOOLS_LDFLAGS) -o $@ $^
-
-Q3LCCOBJ = \
-	$(B)/tools/etc/lcc.o \
-	$(B)/tools/etc/bytecode.o
-
-$(B)/tools/etc/%.o: $(Q3LCCETCDIR)/%.c
-	$(DO_TOOLS_CC)
-
-$(Q3LCC): $(Q3LCCOBJ) $(Q3RCC) $(Q3CPP)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(TOOLS_LDFLAGS) -o $@ $(Q3LCCOBJ)
 
 define DO_Q3LCC
-$(echo_cmd) "Q3LCC $<"
-$(Q)$(Q3LCC) -o $@ $<
+@echo "Q3LCC $<"
+@$(Q3LCC) -o $@ $<
 endef
-
-define DO_CGAME_Q3LCC
-$(echo_cmd) "CGAME_Q3LCC $<"
-$(Q)$(Q3LCC) -DPRODUCT_VERSION=\"$(VERSION)\" -DCGAME -o $@ $<
-endef
-
-define DO_GAME_Q3LCC
-$(echo_cmd) "GAME_Q3LCC $<"
-$(Q)$(Q3LCC) -DPRODUCT_VERSION=\"$(VERSION)\" -DGAME -o $@ $<
-endef
-
-define DO_UI_Q3LCC
-$(echo_cmd) "UI_Q3LCC $<"
-$(Q)$(Q3LCC) -DPRODUCT_VERSION=\"$(VERSION)\" -DUI -o $@ $<
-endef
-
-
-Q3ASMOBJ = \
-  $(B)/tools/asm/q3asm.o \
-  $(B)/tools/asm/cmdlib.o
-
-$(B)/tools/asm/%.o: $(Q3ASMDIR)/%.c
-	$(DO_TOOLS_CC)
-
-$(Q3ASM): $(Q3ASMOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(TOOLS_LDFLAGS) -o $@ $^
-
-#############################################################################
-# CLIENT/SERVER
-#############################################################################
-
-Q3OBJ = \
-  $(B)/client/cl_cgame.o \
-  $(B)/client/cl_cin.o \
-  $(B)/client/cl_console.o \
-  $(B)/client/cl_input.o \
-  $(B)/client/cl_keys.o \
-  $(B)/client/cl_main.o \
-  $(B)/client/cl_net_chan.o \
-  $(B)/client/cl_parse.o \
-  $(B)/client/cl_scrn.o \
-  $(B)/client/cl_ui.o \
-  $(B)/client/cl_avi.o \
-  \
-  $(B)/client/cm_load.o \
-  $(B)/client/cm_patch.o \
-  $(B)/client/cm_polylib.o \
-  $(B)/client/cm_test.o \
-  $(B)/client/cm_trace.o \
-  \
-  $(B)/client/cmd.o \
-  $(B)/client/common.o \
-  $(B)/client/cvar.o \
-  $(B)/client/files.o \
-  $(B)/client/md4.o \
-  $(B)/client/md5.o \
-  $(B)/client/msg.o \
-  $(B)/client/net_chan.o \
-  $(B)/client/net_ip.o \
-  $(B)/client/huffman.o \
-  $(B)/client/parse.o \
-  \
-  $(B)/client/snd_adpcm.o \
-  $(B)/client/snd_dma.o \
-  $(B)/client/snd_mem.o \
-  $(B)/client/snd_mix.o \
-  $(B)/client/snd_wavelet.o \
-  \
-  $(B)/client/snd_main.o \
-  $(B)/client/snd_codec.o \
-  $(B)/client/snd_codec_wav.o \
-  $(B)/client/snd_codec_ogg.o \
-  \
-  $(B)/client/qal.o \
-  $(B)/client/snd_openal.o \
-  \
-  $(B)/client/cl_curl.o \
-  \
-  $(B)/client/sv_ccmds.o \
-  $(B)/client/sv_client.o \
-  $(B)/client/sv_game.o \
-  $(B)/client/sv_init.o \
-  $(B)/client/sv_main.o \
-  $(B)/client/sv_net_chan.o \
-  $(B)/client/sv_snapshot.o \
-  $(B)/client/sv_world.o \
-  $(B)/ded/sv_mysql.o \
-  $(B)/ded/globalv2loader.o \
-  \
-  $(B)/client/q_math.o \
-  $(B)/client/q_shared.o \
-  \
-  $(B)/client/unzip.o \
-  $(B)/client/puff.o \
-  $(B)/client/vm.o \
-  $(B)/client/vm_interpreted.o \
-  \
-  $(B)/client/jcapimin.o \
-  $(B)/client/jcapistd.o \
-  $(B)/client/jccoefct.o  \
-  $(B)/client/jccolor.o \
-  $(B)/client/jcdctmgr.o \
-  $(B)/client/jchuff.o   \
-  $(B)/client/jcinit.o \
-  $(B)/client/jcmainct.o \
-  $(B)/client/jcmarker.o \
-  $(B)/client/jcmaster.o \
-  $(B)/client/jcomapi.o \
-  $(B)/client/jcparam.o \
-  $(B)/client/jcphuff.o \
-  $(B)/client/jcprepct.o \
-  $(B)/client/jcsample.o \
-  $(B)/client/jdapimin.o \
-  $(B)/client/jdapistd.o \
-  $(B)/client/jdatasrc.o \
-  $(B)/client/jdcoefct.o \
-  $(B)/client/jdcolor.o \
-  $(B)/client/jddctmgr.o \
-  $(B)/client/jdhuff.o \
-  $(B)/client/jdinput.o \
-  $(B)/client/jdmainct.o \
-  $(B)/client/jdmarker.o \
-  $(B)/client/jdmaster.o \
-  $(B)/client/jdpostct.o \
-  $(B)/client/jdsample.o \
-  $(B)/client/jdtrans.o \
-  $(B)/client/jerror.o \
-  $(B)/client/jfdctflt.o \
-  $(B)/client/jidctflt.o \
-  $(B)/client/jmemmgr.o \
-  $(B)/client/jmemnobs.o \
-  $(B)/client/jutils.o \
-  \
-  $(B)/client/tr_animation.o \
-  $(B)/client/tr_backend.o \
-  $(B)/client/tr_bsp.o \
-  $(B)/client/tr_cmds.o \
-  $(B)/client/tr_curve.o \
-  $(B)/client/tr_flares.o \
-  $(B)/client/tr_font.o \
-  $(B)/client/tr_image.o \
-  $(B)/client/tr_image_png.o \
-  $(B)/client/tr_image_jpg.o \
-  $(B)/client/tr_image_bmp.o \
-  $(B)/client/tr_image_tga.o \
-  $(B)/client/tr_image_pcx.o \
-  $(B)/client/tr_init.o \
-  $(B)/client/tr_light.o \
-  $(B)/client/tr_main.o \
-  $(B)/client/tr_marks.o \
-  $(B)/client/tr_mesh.o \
-  $(B)/client/tr_model.o \
-  $(B)/client/tr_noise.o \
-  $(B)/client/tr_scene.o \
-  $(B)/client/tr_shade.o \
-  $(B)/client/tr_shade_calc.o \
-  $(B)/client/tr_shader.o \
-  $(B)/client/tr_shadows.o \
-  $(B)/client/tr_sky.o \
-  $(B)/client/tr_surface.o \
-  $(B)/client/tr_world.o \
-  \
-  $(B)/client/sdl_gamma.o \
-  $(B)/client/sdl_input.o \
-  $(B)/client/sdl_snd.o \
-  \
-  $(B)/client/con_log.o \
-  $(B)/client/sys_main.o
-
-ifeq ($(ARCH),x86)
-  Q3OBJ += \
-    $(B)/client/snd_mixa.o \
-    $(B)/client/matha.o \
-    $(B)/client/ftola.o \
-    $(B)/client/snapvectora.o
-endif
-
-ifeq ($(USE_VOIP),1)
-ifeq ($(USE_INTERNAL_SPEEX),1)
-Q3OBJ += \
-  $(B)/client/bits.o \
-  $(B)/client/buffer.o \
-  $(B)/client/cb_search.o \
-  $(B)/client/exc_10_16_table.o \
-  $(B)/client/exc_10_32_table.o \
-  $(B)/client/exc_20_32_table.o \
-  $(B)/client/exc_5_256_table.o \
-  $(B)/client/exc_5_64_table.o \
-  $(B)/client/exc_8_128_table.o \
-  $(B)/client/fftwrap.o \
-  $(B)/client/filterbank.o \
-  $(B)/client/filters.o \
-  $(B)/client/gain_table.o \
-  $(B)/client/gain_table_lbr.o \
-  $(B)/client/hexc_10_32_table.o \
-  $(B)/client/hexc_table.o \
-  $(B)/client/high_lsp_tables.o \
-  $(B)/client/jitter.o \
-  $(B)/client/kiss_fft.o \
-  $(B)/client/kiss_fftr.o \
-  $(B)/client/lpc.o \
-  $(B)/client/lsp.o \
-  $(B)/client/lsp_tables_nb.o \
-  $(B)/client/ltp.o \
-  $(B)/client/mdf.o \
-  $(B)/client/modes.o \
-  $(B)/client/modes_wb.o \
-  $(B)/client/nb_celp.o \
-  $(B)/client/preprocess.o \
-  $(B)/client/quant_lsp.o \
-  $(B)/client/resample.o \
-  $(B)/client/sb_celp.o \
-  $(B)/client/smallft.o \
-  $(B)/client/speex.o \
-  $(B)/client/speex_callbacks.o \
-  $(B)/client/speex_header.o \
-  $(B)/client/stereo.o \
-  $(B)/client/vbr.o \
-  $(B)/client/vq.o \
-  $(B)/client/window.o
-endif
-endif
-
-
-ifeq ($(HAVE_VM_COMPILED),true)
-  ifeq ($(ARCH),x86)
-    Q3OBJ += $(B)/client/vm_x86.o
-  endif
-  ifeq ($(ARCH),x86_64)
-    Q3OBJ += $(B)/client/vm_x86_64.o $(B)/client/vm_x86_64_assembler.o
-  endif
-  ifeq ($(ARCH),ppc)
-    Q3OBJ += $(B)/client/vm_ppc.o
-  endif
-endif
-
-ifeq ($(PLATFORM),mingw32)
-  Q3OBJ += \
-    $(B)/client/win_resource.o \
-    $(B)/client/sys_win32.o \
-    $(B)/client/con_win32.o
-else
-  Q3OBJ += \
-    $(B)/client/sys_unix.o \
-    $(B)/client/con_tty.o
-endif
-
-ifeq ($(USE_MUMBLE),1)
-  Q3OBJ += \
-    $(B)/client/libmumblelink.o
-endif
-
-Q3POBJ += \
-  $(B)/client/sdl_glimp.o
-
-Q3POBJ_SMP += \
-  $(B)/clientsmp/sdl_glimp.o
-
-$(B)/tremulous.$(ARCH)$(BINEXT): $(Q3OBJ) $(Q3POBJ) $(LIBSDLMAIN)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) -o $@ $(Q3OBJ) $(Q3POBJ) $(CLIENT_LDFLAGS) \
-		$(LDFLAGS) $(LIBSDLMAIN)
-
-$(B)/tremulous-smp.$(ARCH)$(BINEXT): $(Q3OBJ) $(Q3POBJ_SMP) $(LIBSDLMAIN)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) -o $@ $(Q3OBJ) $(Q3POBJ_SMP) $(CLIENT_LDFLAGS) \
-		$(THREAD_LDFLAGS) $(LDFLAGS) $(LIBSDLMAIN)
-
-ifneq ($(strip $(LIBSDLMAIN)),)
-ifneq ($(strip $(LIBSDLMAINSRC)),)
-$(LIBSDLMAIN) : $(LIBSDLMAINSRC)
-	cp $< $@
-	ranlib $@
-endif
-endif
-
-#############################################################################
-# DEDICATED SERVER
-#############################################################################
-Q3DOBJ = \
-  $(B)/ded/sv_client.o \
-  $(B)/ded/sv_ccmds.o \
-  $(B)/ded/sv_game.o \
-  $(B)/ded/sv_init.o \
-  $(B)/ded/sv_main.o \
-  $(B)/ded/sv_net_chan.o \
-  $(B)/ded/sv_snapshot.o \
-  $(B)/ded/sv_world.o \
-  $(B)/ded/sv_mysql.o \
-  $(B)/ded/globalv2loader.o \
-  \
-  $(B)/ded/cm_load.o \
-  $(B)/ded/cm_patch.o \
-  $(B)/ded/cm_polylib.o \
-  $(B)/ded/cm_test.o \
-  $(B)/ded/cm_trace.o \
-  $(B)/ded/cmd.o \
-  $(B)/ded/common.o \
-  $(B)/ded/cvar.o \
-  $(B)/ded/files.o \
-  $(B)/ded/md4.o \
-  $(B)/ded/msg.o \
-  $(B)/ded/net_chan.o \
-  $(B)/ded/net_ip.o \
-  $(B)/ded/huffman.o \
-  $(B)/ded/parse.o \
-  \
-  $(B)/ded/q_math.o \
-  $(B)/ded/q_shared.o \
-  \
-  $(B)/ded/unzip.o \
-  $(B)/ded/vm.o \
-  $(B)/ded/vm_interpreted.o \
-  \
-  $(B)/ded/null_client.o \
-  $(B)/ded/null_input.o \
-  $(B)/ded/null_snddma.o \
-  \
-  $(B)/ded/con_log.o \
-  $(B)/ded/sys_main.o
-
-ifeq ($(ARCH),x86)
-  Q3DOBJ += \
-      $(B)/ded/ftola.o \
-      $(B)/ded/snapvectora.o \
-      $(B)/ded/matha.o
-endif
-
-ifeq ($(HAVE_VM_COMPILED),true)
-  ifeq ($(ARCH),x86)
-    Q3DOBJ += $(B)/ded/vm_x86.o
-  endif
-  ifeq ($(ARCH),x86_64)
-    Q3DOBJ += $(B)/ded/vm_x86_64.o
-  endif
-  ifeq ($(ARCH),ppc)
-    Q3DOBJ += $(B)/ded/vm_ppc.o
-  endif
-endif
-
-#ifeq ($(PLATFORM),mingw32)
-#  Q3DOBJ += \
-    $(B)/ded/win_resource.o \
-    $(B)/ded/sys_win32.o \
-    $(B)/ded/con_win32.o
-#else
-  Q3DOBJ += \
-    $(B)/ded/sys_unix.o \
-    $(B)/ded/con_tty.o
-#endif
-
-ifeq ($(BUILD_PROFILING),1)
-     LDFLAGS += -pg
-    endif
-
-
-$(B)/tremded.$(ARCH)$(BINEXT): $(Q3DOBJ)
-	@echo "LD $@"
-	@$(CC) -o $@ $(Q3DOBJ) $(LDFLAGS)
-
-
 
 #############################################################################
 ## TREMULOUS CGAME
 #############################################################################
 
 CGOBJ_ = \
-  $(B)/base/cgame/cg_main.o \
-  $(B)/base/game/bg_misc.o \
-  $(B)/base/game/bg_pmove.o \
-  $(B)/base/game/bg_slidemove.o \
-  $(B)/base/game/bg_lib.o \
-  $(B)/base/cgame/cg_consolecmds.o \
-  $(B)/base/cgame/cg_buildable.o \
-  $(B)/base/cgame/cg_animation.o \
-  $(B)/base/cgame/cg_animmapobj.o \
-  $(B)/base/cgame/cg_draw.o \
-  $(B)/base/cgame/cg_drawtools.o \
-  $(B)/base/cgame/cg_ents.o \
-  $(B)/base/cgame/cg_event.o \
-  $(B)/base/cgame/cg_marks.o \
-  $(B)/base/cgame/cg_players.o \
-  $(B)/base/cgame/cg_playerstate.o \
-  $(B)/base/cgame/cg_predict.o \
-  $(B)/base/cgame/cg_servercmds.o \
-  $(B)/base/cgame/cg_snapshot.o \
-  $(B)/base/cgame/cg_view.o \
-  $(B)/base/cgame/cg_weapons.o \
-  $(B)/base/cgame/cg_mem.o \
-  $(B)/base/cgame/cg_scanner.o \
-  $(B)/base/cgame/cg_attachment.o \
-  $(B)/base/cgame/cg_trails.o \
-  $(B)/base/cgame/cg_particles.o \
-  $(B)/base/cgame/cg_ptr.o \
-  $(B)/base/cgame/cg_tutorial.o \
-  $(B)/base/ui/ui_shared.o \
+  $(B)/$(MODPATH)/cgame/cg_main.o \
+  $(B)/$(MODPATH)/game/bg_misc.o \
+  $(B)/$(MODPATH)/game/bg_pmove.o \
+  $(B)/$(MODPATH)/game/bg_slidemove.o \
+  $(B)/$(MODPATH)/cgame/cg_consolecmds.o \
+  $(B)/$(MODPATH)/cgame/cg_buildable.o \
+  $(B)/$(MODPATH)/cgame/cg_animation.o \
+  $(B)/$(MODPATH)/cgame/cg_animmapobj.o \
+  $(B)/$(MODPATH)/cgame/cg_draw.o \
+  $(B)/$(MODPATH)/cgame/cg_drawtools.o \
+  $(B)/$(MODPATH)/cgame/cg_ents.o \
+  $(B)/$(MODPATH)/cgame/cg_event.o \
+  $(B)/$(MODPATH)/cgame/cg_marks.o \
+  $(B)/$(MODPATH)/cgame/cg_players.o \
+  $(B)/$(MODPATH)/cgame/cg_playerstate.o \
+  $(B)/$(MODPATH)/cgame/cg_predict.o \
+  $(B)/$(MODPATH)/cgame/cg_servercmds.o \
+  $(B)/$(MODPATH)/cgame/cg_snapshot.o \
+  $(B)/$(MODPATH)/cgame/cg_view.o \
+  $(B)/$(MODPATH)/cgame/cg_weapons.o \
+  $(B)/$(MODPATH)/cgame/cg_mem.o \
+  $(B)/$(MODPATH)/cgame/cg_scanner.o \
+  $(B)/$(MODPATH)/cgame/cg_attachment.o \
+  $(B)/$(MODPATH)/cgame/cg_trails.o \
+  $(B)/$(MODPATH)/cgame/cg_particles.o \
+  $(B)/$(MODPATH)/cgame/cg_ptr.o \
+  $(B)/$(MODPATH)/cgame/cg_tutorial.o \
+  $(B)/$(MODPATH)/ui/ui_shared.o \
   \
-  $(B)/base/qcommon/q_math.o \
-  $(B)/base/qcommon/q_shared.o
+  $(B)/$(MODPATH)/qcommon/q_math.o \
+  $(B)/$(MODPATH)/qcommon/q_shared.o
 
-CGOBJ = $(CGOBJ_) $(B)/base/cgame/cg_syscalls.o
-CGVMOBJ = $(CGOBJ_:%.o=%.asm)
+CGOBJ = $(CGOBJ_) $(B)/$(MODPATH)/cgame/cg_syscalls.o
+CGVMOBJ = $(CGOBJ_:%.o=%.asm) $(B)/$(MODPATH)/game/bg_lib.asm
 
-$(B)/base/cgame$(ARCH).$(SHLIBEXT): $(CGOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(SHLIBLDFLAGS) -o $@ $(CGOBJ)
+$(B)/$(MODPATH)/cgame$(ARCH).$(SHLIBEXT) : $(CGOBJ)
+	@echo "LD $@"
+	@$(CC) $(SHLIBLDFLAGS) -o $@ $(CGOBJ)
 
-$(B)/base/vm/cgame.qvm: $(CGVMOBJ) $(CGDIR)/cg_syscalls.asm $(Q3ASM)
-	$(echo_cmd) "Q3ASM $@"
-	$(Q)$(Q3ASM) -o $@ $(CGVMOBJ) $(CGDIR)/cg_syscalls.asm
+$(B)/$(MODPATH)/vm/cgame.$(QVMEXT): $(CGVMOBJ) $(CGDIR)/cg_syscalls.asm
+	@echo "Q3ASM $@"
+	@$(Q3ASM) -o $@ $(CGVMOBJ) $(CGDIR)/cg_syscalls.asm
 
 
 
@@ -1509,54 +903,54 @@ $(B)/base/vm/cgame.qvm: $(CGVMOBJ) $(CGDIR)/cg_syscalls.asm $(Q3ASM)
 #############################################################################
 
 GOBJ_ = \
-  $(B)/base/game/g_main.o \
-  $(B)/base/game/bg_misc.o \
-  $(B)/base/game/bg_pmove.o \
-  $(B)/base/game/bg_slidemove.o \
-  $(B)/base/game/g_mem.o \
-  $(B)/base/game/g_active.o \
-  $(B)/base/game/g_client.o \
-  $(B)/base/game/g_cmds.o \
-  $(B)/base/game/g_combat.o \
-  $(B)/base/game/g_physics.o \
-  $(B)/base/game/g_buildable.o \
-  $(B)/base/game/g_item.o \
-  $(B)/base/game/g_misc.o \
-  $(B)/base/game/g_missile.o \
-  $(B)/base/game/g_mover.o \
-  $(B)/base/game/g_session.o \
-  $(B)/base/game/g_spawn.o \
-  $(B)/base/game/g_svcmds.o \
-  $(B)/base/game/g_target.o \
-  $(B)/base/game/g_team.o \
-  $(B)/base/game/g_trigger.o \
-  $(B)/base/game/g_utils.o \
-  $(B)/base/game/g_maprotation.o \
-  $(B)/base/game/g_ptr.o \
-  $(B)/base/game/g_weapon.o \
-  $(B)/base/game/g_admin.o \
-  $(B)/base/game/g_global.o \
-  $(B)/base/game/g_bot.o \
-  $(B)/base/game/acebot_ai.o \
-  $(B)/base/game/acebot_cmds.o \
-  $(B)/base/game/acebot_items.o \
-  $(B)/base/game/acebot_movement.o \
-  $(B)/base/game/acebot_nodes.o \
-  $(B)/base/game/acebot_spawn.o \
+  $(B)/$(MODPATH)/game/g_main.o \
+  $(B)/$(MODPATH)/game/bg_misc.o \
+  $(B)/$(MODPATH)/game/bg_pmove.o \
+  $(B)/$(MODPATH)/game/bg_slidemove.o \
+  $(B)/$(MODPATH)/game/g_mem.o \
+  $(B)/$(MODPATH)/game/g_active.o \
+  $(B)/$(MODPATH)/game/g_client.o \
+  $(B)/$(MODPATH)/game/g_cmds.o \
+  $(B)/$(MODPATH)/game/g_combat.o \
+  $(B)/$(MODPATH)/game/g_physics.o \
+  $(B)/$(MODPATH)/game/g_buildable.o \
+  $(B)/$(MODPATH)/game/g_item.o \
+  $(B)/$(MODPATH)/game/g_misc.o \
+  $(B)/$(MODPATH)/game/g_missile.o \
+  $(B)/$(MODPATH)/game/g_mover.o \
+  $(B)/$(MODPATH)/game/g_session.o \
+  $(B)/$(MODPATH)/game/g_spawn.o \
+  $(B)/$(MODPATH)/game/g_svcmds.o \
+  $(B)/$(MODPATH)/game/g_target.o \
+  $(B)/$(MODPATH)/game/g_team.o \
+  $(B)/$(MODPATH)/game/g_trigger.o \
+  $(B)/$(MODPATH)/game/g_utils.o \
+  $(B)/$(MODPATH)/game/g_maprotation.o \
+  $(B)/$(MODPATH)/game/g_ptr.o \
+  $(B)/$(MODPATH)/game/g_weapon.o \
+  $(B)/$(MODPATH)/game/g_admin.o \
+  $(B)/$(MODPATH)/game/g_global.o \
+  $(B)/$(MODPATH)/game/g_bot.o \
+  $(B)/$(MODPATH)/game/acebot_ai.o \
+  $(B)/$(MODPATH)/game/acebot_cmds.o \
+  $(B)/$(MODPATH)/game/acebot_items.o \
+  $(B)/$(MODPATH)/game/acebot_movement.o \
+  $(B)/$(MODPATH)/game/acebot_nodes.o \
+  $(B)/$(MODPATH)/game/acebot_spawn.o \
   \
-  $(B)/base/qcommon/q_math.o \
-  $(B)/base/qcommon/q_shared.o
+  $(B)/$(MODPATH)/qcommon/q_math.o \
+  $(B)/$(MODPATH)/qcommon/q_shared.o
 
-GOBJ = $(GOBJ_) $(B)/base/game/g_syscalls.o
-GVMOBJ = $(GOBJ_:%.o=%.asm) $(B)/base/game/bg_lib.asm
+GOBJ = $(GOBJ_) $(B)/$(MODPATH)/game/g_syscalls.o
+GVMOBJ = $(GOBJ_:%.o=%.asm) $(B)/$(MODPATH)/game/bg_lib.asm
 
-$(B)/base/game$(ARCH).$(SHLIBEXT): $(GOBJ)
-	$(echo_cmd) "LD $@"
-	$(Q)$(CC) $(SHLIBLDFLAGS) -o $@ $(GOBJ)
+$(B)/$(MODPATH)/game$(ARCH).$(SHLIBEXT) : $(GOBJ)
+	@echo "LD $@"
+	@$(CC) $(SHLIBLDFLAGS) -o $@ $(GOBJ)
 
-$(B)/base/vm/game.qvm: $(GVMOBJ) $(GDIR)/g_syscalls.asm
-	$(echo_cmd) "Q3ASM $@"
-	$(Q3ASM) -o $@ $(GVMOBJ) $(GDIR)/g_syscalls.asm
+$(B)/$(MODPATH)/vm/game.$(QVMEXT): $(GVMOBJ) $(GDIR)/g_syscalls.asm
+	@echo "Q3ASM $@"
+	@$(Q3ASM) -o $@ $(GVMOBJ) $(GDIR)/g_syscalls.asm
 
 
 
@@ -1565,137 +959,74 @@ $(B)/base/vm/game.qvm: $(GVMOBJ) $(GDIR)/g_syscalls.asm
 #############################################################################
 
 UIOBJ_ = \
-  $(B)/base/ui/ui_main.o \
-  $(B)/base/ui/ui_atoms.o \
-  $(B)/base/ui/ui_players.o \
-  $(B)/base/ui/ui_shared.o \
-  $(B)/base/ui/ui_gameinfo.o \
+  $(B)/$(MODPATH)/ui/ui_main.o \
+  $(B)/$(MODPATH)/ui/ui_atoms.o \
+  $(B)/$(MODPATH)/ui/ui_players.o \
+  $(B)/$(MODPATH)/ui/ui_shared.o \
+  $(B)/$(MODPATH)/ui/ui_gameinfo.o \
   \
-  $(B)/base/game/bg_misc.o \
-  $(B)/base/qcommon/q_math.o \
-  $(B)/base/qcommon/q_shared.o \
+  $(B)/$(MODPATH)/game/bg_misc.o \
+  $(B)/$(MODPATH)/qcommon/q_math.o \
+  $(B)/$(MODPATH)/qcommon/q_shared.o
 
-UIOBJ = $(UIOBJ_) $(B)/base/ui/ui_syscalls.o
-UIVMOBJ = $(UIOBJ_:%.o=%.asm) $(B)/base/game/bg_lib.asm
+UIOBJ = $(UIOBJ_) $(B)/$(MODPATH)/ui/ui_syscalls.o
+UIVMOBJ = $(UIOBJ_:%.o=%.asm) $(B)/$(MODPATH)/game/bg_lib.asm
 
-$(B)/base/ui$(ARCH).$(SHLIBEXT) : $(UIOBJ)
+$(B)/$(MODPATH)/ui$(ARCH).$(SHLIBEXT) : $(UIOBJ)
 	@echo "LD $@"
 	@$(CC) $(CFLAGS) $(SHLIBLDFLAGS) -o $@ $(UIOBJ)
 
-$(B)/base/vm/ui.qvm: $(UIVMOBJ) $(UIDIR)/ui_syscalls.asm
+$(B)/$(MODPATH)/vm/ui.$(QVMEXT): $(UIVMOBJ) $(UIDIR)/ui_syscalls.asm
 	@echo "Q3ASM $@"
 	@$(Q3ASM) -o $@ $(UIVMOBJ) $(UIDIR)/ui_syscalls.asm
 
 
 
 #############################################################################
-## CLIENT/SERVER RULES
-#############################################################################
-
-$(B)/client/%.o: $(ASMDIR)/%.s
-	$(DO_AS)
-
-$(B)/client/%.o: $(CDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(SDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(CMDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(JPDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(SPEEXDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(RDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(SDLDIR)/%.c
-	$(DO_CC)
-
-$(B)/clientsmp/%.o: $(SDLDIR)/%.c
-	$(DO_SMP_CC)
-
-$(B)/client/%.o: $(SYSDIR)/%.c
-	$(DO_CC)
-
-$(B)/client/%.o: $(SYSDIR)/%.rc
-	$(DO_WINDRES)
-
-$(B)/ded/%.o: $(ASMDIR)/%.s
-	$(DO_AS)
-
-$(B)/ded/%.o: $(SDIR)/%.c
-	$(DO_DED_CC)
-
-$(B)/ded/%.o: $(CMDIR)/%.c
-	$(DO_DED_CC)
-
-$(B)/ded/%.o: $(SYSDIR)/%.c
-	$(DO_DED_CC)
-
-$(B)/ded/%.o: $(SYSDIR)/%.rc
-	$(DO_WINDRES)
-
-$(B)/ded/%.o: $(BLIBDIR)/%.c
-	$(DO_BOT_CC)
-
-#$(B)/ded/%.o: $(UDIR)/%.c
-#	$(DO_DED_CC)
-
-$(B)/ded/%.o: $(NDIR)/%.c
-	$(DO_DED_CC)
-
-# Extra dependencies to ensure the SVN version is incorporated
-ifeq ($(USE_SVN),1)
-  $(B)/client/cl_console.o : .svn/entries
-  $(B)/client/common.o : .svn/entries
-  $(B)/ded/common.o : .svn/entries
-endif
-
-
-#############################################################################
 ## GAME MODULE RULES
 #############################################################################
-$(B)/base/cgame/%.o: $(CGDIR)/%.c
+
+$(B)/$(MODPATH)/cgame/%.o: $(CGDIR)/%.c
 	$(DO_SHLIB_CC)
 
-$(B)/base/cgame/%.asm: $(CGDIR)/%.c
+$(B)/$(MODPATH)/cgame/%.asm: $(CGDIR)/%.c
 	$(DO_Q3LCC)
 
-$(B)/base/game/%.o: $(GDIR)/%.c
+
+$(B)/$(MODPATH)/game/%.o: $(GDIR)/%.c
 	$(DO_SHLIB_CC)
 
-$(B)/base/game/%.asm: $(GDIR)/%.c
+$(B)/$(MODPATH)/game/%.asm: $(GDIR)/%.c
 	$(DO_Q3LCC)
 
-$(B)/base/ui/%.o: $(UIDIR)/%.c
+
+$(B)/$(MODPATH)/ui/%.o: $(UIDIR)/%.c
 	$(DO_SHLIB_CC)
 
-$(B)/base/ui/%.asm: $(UIDIR)/%.c
+$(B)/$(MODPATH)/ui/%.asm: $(UIDIR)/%.c
 	$(DO_Q3LCC)
 
-$(B)/base/qcommon/%.o: $(CMDIR)/%.c
+
+$(B)/$(MODPATH)/qcommon/%.o: $(CMDIR)/%.c
 	$(DO_SHLIB_CC)
 
-$(B)/base/qcommon/%.asm: $(CMDIR)/%.c
+$(B)/$(MODPATH)/qcommon/%.asm: $(CMDIR)/%.c
 	$(DO_Q3LCC)
-	
+
+
 #############################################################################
 # MISC
 #############################################################################
 
-OBJ = $(Q3OBJ) $(Q3POBJ) $(Q3POBJ_SMP) $(Q3DOBJ) \
-  $(GOBJ) $(CGOBJ) $(UIOBJ) \
-  $(GVMOBJ) $(CGVMOBJ) $(UIVMOBJ)
-TOOLSOBJ = $(LBURGOBJ) $(Q3CPPOBJ) $(Q3RCCOBJ) $(Q3LCCOBJ) $(Q3ASMOBJ)
-
-
 clean: clean-debug clean-release
-	@$(MAKE) -C $(MASTERDIR) clean
+	@$(MAKE) clean2
+
+clean2:
+	@echo "CLEAN $(B)"
+	@if [ -d $(B) ];then (find $(B) -name '*.d' -exec rm {} \;)fi
+	@rm -f $(GOBJ) $(CGOBJ) $(UIOBJ) \
+		$(GVMOBJ) $(CGVMOBJ) $(UIVMOBJ)
+	@rm -f $(TARGETS)
 
 clean-debug:
 	@$(MAKE) clean2 B=$(BD)
@@ -1703,44 +1034,41 @@ clean-debug:
 clean-release:
 	@$(MAKE) clean2 B=$(BR)
 
-clean2:
-	@echo "CLEAN $(B)"
-	@rm -f $(OBJ)
-	@rm -f $(OBJ_D_FILES)
-	@rm -f $(TARGETS)
-
-toolsclean: toolsclean-debug toolsclean-release
-
-toolsclean-debug:
-	@$(MAKE) toolsclean2 B=$(BD)
-
-toolsclean-release:
-	@$(MAKE) toolsclean2 B=$(BR)
-
-toolsclean2:
-	@echo "TOOLS_CLEAN $(B)"
-	@rm -f $(TOOLSOBJ)
-	@rm -f $(TOOLSOBJ_D_FILES)
-	@rm -f $(LBURG) $(DAGCHECK_C) $(Q3RCC) $(Q3CPP) $(Q3LCC) $(Q3ASM)
+toolsclean:
+	@$(MAKE) -C $(TOOLSDIR)/asm clean uninstall
+	@$(MAKE) -C $(TOOLSDIR)/lcc clean uninstall
 
 distclean: clean toolsclean
 	@rm -rf $(BUILD_DIR)
 
 dist:
-	rm -rf tremulous-$(SVN_VERSION)
-	svn export . tremulous-$(SVN_VERSION)
-	tar --owner=root --group=root --force-local -cjf tremulous-$(SVN_VERSION).tar.bz2 tremulous-$(SVN_VERSION)
-	rm -rf tremulous-$(SVN_VERSION)
+	@rm -rf tremulous-$(SVN_VERSION)
+	@svn export . tremulous-$(SVN_VERSION)
+	@tar --owner=root --group=root --force-local -cjf tremulous-$(SVN_VERSION).tar.bz2 tremulous-$(SVN_VERSION)
+	@rm -rf tremulous-$(SVN_VERSION)
+
+#############################################################################
+# PK3s
+#############################################################################
+
+ui/infopanes.def: ui/infopanes.def.h
+	@echo "GCC $@"
+	@gcc -E $< | grep "^[^#].*" > $@
+
+$(B)/$(MODPATH)/zvms.$(PK3EXT): $(B)/$(MODPATH)/vm/cgame.$(QVMEXT) $(B)/$(MODPATH)/vm/ui.$(QVMEXT)
+	@echo "ZIP $@"
+	@cd $(B)/$(MODPATH); zip -X9 zvms.$(PK3EXT) vm/cgame.$(QVMEXT) vm/ui.$(QVMEXT)
 
 #############################################################################
 # DEPENDENCIES
 #############################################################################
 
-OBJ_D_FILES=$(filter %.d,$(OBJ:%.o=%.d))
-TOOLSOBJ_D_FILES=$(filter %.d,$(TOOLSOBJ:%.o=%.d))
--include $(OBJ_D_FILES) $(TOOLSOBJ_D_FILES)
+D_FILES=$(shell find . -name '*.d')
 
-.PHONY: all clean clean2 clean-debug clean-release copyfiles \
-	debug default dist distclean makedirs \
-	release targets \
-	toolsclean toolsclean2 toolsclean-debug toolsclean-release
+ifneq ($(strip $(D_FILES)),)
+  include $(D_FILES)
+endif
+
+.PHONY: all clean clean2 clean-debug clean-release \
+	debug default dist distclean makedirs release \
+	targets tools toolsclean
