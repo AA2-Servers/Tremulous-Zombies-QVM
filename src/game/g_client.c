@@ -1209,26 +1209,33 @@ ClientUserinfoChanged(int clientNum)
     client->pers.predictItemPickup = qfalse;
   else
     client->pers.predictItemPickup = qtrue;
+//SET NAME
 
-  // set name
-  Q_strncpyz(oldname, client->pers.netname, sizeof(oldname));
-  s = Info_ValueForKey(userinfo, "name");
-  ClientCleanName(s, newname, sizeof(newname));
+ Q_strncpyz( oldname, client->pers.netname, sizeof( oldname ) );
+  s = Info_ValueForKey( userinfo, "name" );
 
-  if (strcmp(oldname, newname))
+  if ( !G_admin_permission( ent, ADMF_SPECIALNAME ) )
+    ClientCleanName( s, newname, sizeof( newname ), qfalse );
+  else
+    ClientCleanName( s, newname, sizeof( newname ), qtrue );
+
+  if( strcmp( oldname, newname ) )
   {
-    if (!strlen(oldname) && client->pers.connected != CON_CONNECTED)
+    if( !strlen( oldname ) && client->pers.connected != CON_CONNECTED )
       showRenameMsg = qfalse;
 
     // in case we need to revert and there's no oldname
-    ClientCleanName(va("%s", client->pers.netname), oldname, sizeof(oldname));
-
-    if (g_newbieNumbering.integer)
+    if ( !G_admin_permission( ent, ADMF_SPECIALNAME ) )
+      ClientCleanName( va( "%s", client->pers.netname ), oldname, sizeof( oldname ), qfalse );
+    else
+      ClientCleanName( va( "%s", client->pers.netname ), oldname, sizeof( oldname ), qtrue );
+ 
+    if( g_newbieNumbering.integer )
     {
-      if (!strcmp(newname, "UnnamedPlayer"))
-        Q_strncpyz(newname, G_NextNewbieName(ent), sizeof(newname));
-      if (!strcmp(oldname, "UnnamedPlayer"))
-        Q_strncpyz(oldname, G_NextNewbieName(ent), sizeof(oldname));
+      if( !strcmp( newname, "UnnamedPlayer" ) )
+        Q_strncpyz( newname, G_NextNewbieName( ent ), sizeof( newname ) );
+      if( !strcmp( oldname, "UnnamedPlayer" ) )
+        Q_strncpyz( oldname, G_NextNewbieName( ent ), sizeof( oldname ) );
     }
 
     if (client->pers.muted)

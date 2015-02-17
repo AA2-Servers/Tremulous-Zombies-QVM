@@ -61,6 +61,7 @@
  * DBUILDER - permanent designated builder
  * STEALTH - uses admin stealth
  * ALLFLAGS - all flags (including command flags) apply to this player
+ * SPECIALNAME - allows black text in name
  */
 
 #define ADMF_IMMUNITY            "IMMUNITY"
@@ -87,6 +88,8 @@
 #define MAX_ADMIN_LISTITEMS 20
 #define MAX_ADMIN_SHOWBANS 10
 #define MAX_ADMIN_MAPLOG_LENGTH 5
+
+#define ADMF_SPECIALNAME         "SPECIALNAME"
 
 // important note: QVM does not seem to allow a single char to be a
 // member of a struct at init time.  flag has been converted to char*
