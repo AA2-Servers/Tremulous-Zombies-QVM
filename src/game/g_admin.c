@@ -168,6 +168,8 @@ g_admin_cmd_t g_admin_cmds[] =
 
     { "time", G_admin_time, "time", "show the current local server time", "" },
 
+    { "tips", G_admin_tips, "tips", "shows the server's tips", "" },
+
     { "unban", G_admin_unban, "ban", "unbans a player specified by the slot as seen in showbans", "[^3ban#^7]" },
 
     { "undesignate", G_admin_designate, "designate", "revoke designated builder privileges", "[^3name|slot#^7]" },
@@ -658,20 +660,20 @@ admin_default_levels(void)
   }
 
   Q_strncpyz(g_admin_levels[0]->name, "^4Unknown Player", sizeof(l->name));
-  Q_strncpyz(g_admin_levels[0]->flags, "listplayers admintest help specme time", sizeof(l->flags));
+  Q_strncpyz(g_admin_levels[0]->flags, "listplayers admintest help specme time info tips", sizeof(l->flags));
 
   Q_strncpyz(g_admin_levels[1]->name, "^5Server Regular", sizeof(l->name));
-  Q_strncpyz(g_admin_levels[1]->flags, "listplayers admintest help specme time", sizeof(l->flags));
+  Q_strncpyz(g_admin_levels[1]->flags, "listplayers admintest help specme time info tips", sizeof(l->flags));
 
   Q_strncpyz(g_admin_levels[2]->name, "^6Team Manager", sizeof(l->name));
-  Q_strncpyz(g_admin_levels[2]->flags, "listplayers admintest help specme time putteam spec999 warn denybuild", sizeof(l->flags));
+  Q_strncpyz(g_admin_levels[2]->flags, "listplayers admintest help specme time info tips putteam spec999 warn denybuild", sizeof(l->flags));
 
   Q_strncpyz(g_admin_levels[3]->name, "^2Junior Admin", sizeof(l->name));
-  Q_strncpyz(g_admin_levels[3]->flags, "listplayers admintest help specme time putteam spec999 kick mute warn "
+  Q_strncpyz(g_admin_levels[3]->flags, "listplayers admintest help specme time info tips putteam spec999 kick mute warn "
     "denybuild ADMINCHAT SEESFULLLISTPLAYERS", sizeof(l->flags));
 
   Q_strncpyz(g_admin_levels[4]->name, "^3Senior Admin", sizeof(l->name));
-  Q_strncpyz(g_admin_levels[4]->flags, "listplayers admintest help specme time putteam spec999 kick mute showbans "
+  Q_strncpyz(g_admin_levels[4]->flags, "listplayers admintest help specme time info tips putteam spec999 kick mute showbans "
     "ban namelog warn denybuild ADMINCHAT SEESFULLLISTPLAYERS", sizeof(l->flags));
 
   Q_strncpyz(g_admin_levels[5]->name, "^1Server Operator", sizeof(l->name));
@@ -1283,6 +1285,8 @@ G_admin_readconfig(gentity_t *ent, int skiparg)
   qboolean level_open, admin_open, ban_open, command_open;
   int i;
 
+  G_InitTips();
+
   G_admin_cleanup();
 
   if (!g_admin.string[0])
@@ -1491,8 +1495,8 @@ G_admin_readconfig(gentity_t *ent, int skiparg)
     g_admin_commands[cc++] = c;
   G_Free(cnf2);
   ADMP(va(
-          "^3!readconfig: ^7loaded %d levels, %d admins, %d bans, %d commands\n",
-          lc, ac, bc, cc));
+          "^3!readconfig: ^7loaded %d levels, %d admins, %d bans, %d commands, %d tips\n",
+          lc, ac, bc, cc, tipCacheSize));
   if (lc == 0)
     admin_default_levels();
   else
@@ -5965,5 +5969,14 @@ qboolean G_admin_mystats(gentity_t *ent, int skiparg)
 		ADMBP_end();
 		return qfalse;
 	}
+}
+
+qboolean G_admin_tips( gentity_t *ent, int skiparg )
+{
+  int i;
+  ADMP(va("^3!tips: ^7%d tips available.\n", tipCacheSize));
+  for( i = 0; i < tipCacheSize; i++ )
+    ADMP(va("  ^3%d: ^7%s\n", i+1, tipCache[i]));
+  return qtrue;
 }
 

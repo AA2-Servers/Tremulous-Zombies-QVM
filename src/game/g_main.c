@@ -247,6 +247,16 @@ vmCvar_t ace_botsFile;
 #endif
 vmCvar_t director_debug;
 
+vmCvar_t g_tipTime;
+vmCvar_t g_tipFile;
+vmCvar_t g_tipPrepend;
+vmCvar_t g_tipRandomize;
+
+int lastTipTime;
+int tipIndex;
+char tipCache[MAX_TIP_COUNT][MAX_TIP_LENGTH + 1];
+int tipCacheSize;
+
 static cvarTable_t gameCvarTable[] =
     {
     // don't override the cheat state set by the system
@@ -449,6 +459,10 @@ static cvarTable_t gameCvarTable[] =
 #endif
         { &director_debug, "director_debug", "0", 0, 0, qfalse },
 
+        { &g_tipTime, "g_tipTime", "15", CVAR_ARCHIVE, 0, qfalse },
+        { &g_tipFile, "g_tipFile", "info/tips.txt", CVAR_ARCHIVE, 0, qfalse },
+        { &g_tipRandomize, "g_tipRandomize", "1", CVAR_ARCHIVE, 0, qfalse },
+        { &g_tipPrepend, "g_tipPrepend", "^3Tip: ", CVAR_ARCHIVE, 0, qfalse },
     };
 
 static int gameCvarTableSize = sizeof(gameCvarTable) / sizeof(gameCvarTable[0]);
@@ -476,6 +490,9 @@ G_Director(void);
 
 void
 G_levels(void);
+
+void G_InitTips( void );
+void G_ShowTips( void );
 
 /*
  ================
@@ -3737,6 +3754,8 @@ G_RunFrame(int levelTime)
   // for tracking changes
   CheckCvars();
 
+  G_ShowTips();
+
   if (g_listEntity.integer)
   {
     for(i = 0;i < MAX_GENTITIES;i++)
@@ -3749,3 +3768,105 @@ G_RunFrame(int levelTime)
   level.pausedTime = 0;
 }
 
+void G_InitTips( void )
+{
+  int length, i, j;
+  fileHandle_t infoFile;
+  char message[ MAX_STRING_CHARS ], *cr;
+
+  lastTipTime = level.startTime;
+  tipIndex = 0;
+  tipCacheSize = 0;
+
+  // Most of this pulled from !info
+
+  length = trap_FS_FOpenFile( g_tipFile.string, &infoFile, FS_READ );
+
+  G_LogPrintf( "Initializing Tip File \"%s\"\n", g_tipFile.string );
+
+  if( length < 0 || !infoFile )
+  {
+    G_LogPrintf( "WARNING: Tip File \"%s\" does not exist!\n", g_tipFile.string );
+    return;
+  }
+  if( length == 0 )
+  {
+    G_LogPrintf(" WARNING: Tip File \"%s\" contains no tips!\n", g_tipFile.string );
+    return;
+  }
+
+  // Read from file
+  trap_FS_Read( message, sizeof( message ), infoFile );
+
+  if( length < sizeof( message ) )
+    message[ length ] = '\0';
+  else
+    message[ sizeof( message ) - 1 ] = '\0';
+
+  trap_FS_FCloseFile( infoFile );
+
+  // strip \r's
+  while( ( cr = strchr( message, '\r' ) ) )
+    memmove( cr, cr + 1, strlen( cr + 1 ) + 1 );
+
+  i = 0;
+  j = 0;
+  for(cr = message; *cr && cr - message < length; cr++, j++)
+  {
+    if(*cr == '\n' || j >= MAX_TIP_LENGTH)
+    {
+      if(j >= MAX_TIP_LENGTH)
+      {
+        G_LogPrintf("WARNING: Tip \"%s\" exceeds maximum tip length.\n", tipCache[i]);
+        while(*cr != '\n' && *cr != '\0')
+          cr++;
+        if(!*cr)
+          break;
+      }
+
+      if( ++i >= MAX_TIP_COUNT )
+      {
+        G_LogPrintf("WARNING: Tip File \"%s\" exceeds maximum tip count.\n", g_tipFile.string);
+        break;
+      }
+      else
+      {
+        tipCache[i][j] = '\0'; // null terminate
+        j = -1; // j++ in for loop
+        continue;
+      }
+    }
+    tipCache[i][j] = *cr;
+  }
+  tipCacheSize = i;
+}
+
+/*
+================
+G_ShowTips
+
+Shows a tip every g_tipTime
+================
+*/
+void G_ShowTips( void )
+{
+  static int seed = 69;
+  int randNum;
+
+  if(tipCacheSize <= 0 || (level.time - lastTipTime) < g_tipTime.integer * 1000)
+    return;
+
+  if(g_tipRandomize.integer)
+  {
+    randNum = Q_rand(&seed);
+    trap_SendServerCommand( -1, va( "print \"%s^7%s\n\"", g_tipPrepend.string, tipCache[abs(randNum % tipCacheSize)] ) ); // not exactly random but other places use it
+  }
+  else
+  {
+    if(tipIndex >= tipCacheSize)
+      tipIndex = 0;
+    trap_SendServerCommand( -1, va( "print \"%s^7%s\n\"", g_tipPrepend.string, tipCache[tipIndex] ) );
+    tipIndex++;
+  }
+  lastTipTime = level.time;
+}
