@@ -2227,7 +2227,7 @@ ClientDisconnect(int clientNum)
 	if(ent->client->pers.mysqlid > 0)
 	{
 		ent->client->pers.timeplayed += (level.time - ent->client->pers.enterTime) / 60000; //Minutes played
-		if( trap_mysql_runquery( va("UPDATE players SET timeplayed=\"%d\",adminlevel=\"%d\",lasttime=NOW() WHERE id=\"%d\" LIMIT 1", ent->client->pers.timeplayed, ent->client->pers.adminlevel, ent->client->pers.mysqlid ) ) == qtrue )
+		if( trap_mysql_runquery( va("UPDATE zplayers SET timeplayed=\"%d\",adminlevel=\"%d\",lasttime=NOW() WHERE id=\"%d\" LIMIT 1", ent->client->pers.timeplayed, ent->client->pers.adminlevel, ent->client->pers.mysqlid ) ) == qtrue )
 		{
 		}
 		else
