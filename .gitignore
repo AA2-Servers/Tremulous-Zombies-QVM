@@ -12,7 +12,6 @@ src/tools/q3lcc
 src/tools/q3lcc.exe
 src/tools/q3rcc
 src/tools/q3rcc.exe
-ui/infopanes.def
 *.dll
 *.exe
 *.pk3
